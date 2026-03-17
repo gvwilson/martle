@@ -1,0 +1,25 @@
+# Virtual environment
+.venv/
+
+# Python
+dist/
+__pycache__/
+*.py[cod]
+
+# Testing
+.pytest_cache/
+
+# Emacs
+*~
+
+# VS Code
+.vscode
+
+# MacOS
+.DS_store
+
+# Marimo
+__marimo__
+
+# Build output
+dist/
