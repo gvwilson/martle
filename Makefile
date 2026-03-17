@@ -21,6 +21,11 @@ clean:
 	@find . -path './.venv' -prune -o -type d -name '__pycache__' -exec rm -rf {} +
 	@find . -path './.venv' -prune -o -type f -name '*~' -exec rm {} +
 
+## docs: rebuild GitHub docs
+docs:
+	mkdir -p docs
+	uv run marimo export html-wasm --force --mode edit demo.py -o docs/index.html --sandbox
+
 ## fix: fix formatting and code issues
 fix:
 	@ruff format .
@@ -30,6 +35,6 @@ fix:
 publish:
 	twine upload --verbose dist/*
 
-## test: run Python tests
-test:
-	@pytest tests
+## serve: run local docs server
+serve:
+	python -m http.server --directory docs

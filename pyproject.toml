@@ -15,7 +15,9 @@ requires-python = ">=3.12"
 authors = [
     {name = "Greg Wilson", email = "gvwilson@third-bit.com"},
 ]
-dependencies = []
+dependencies = [
+    "marimo>=0.21.0",
+]
 
 [project.urls]
 Repository = "https://github.com/gvwilson/martle"

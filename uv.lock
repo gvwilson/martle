@@ -459,6 +459,9 @@ wheels = [
 [[package]]
 name = "martle"
 source = { editable = "." }
+dependencies = [
+    { name = "marimo" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -470,6 +473,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "marimo", specifier = ">=0.21.0" }]
 
 [package.metadata.requires-dev]
 dev = [
