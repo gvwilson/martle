@@ -1,6 +1,7 @@
 """marimo turtle graphics"""
 
-__version__ = "0.2.0"
-__all__ = ["Color", "Martle"]
+from .martle import Color as Color, Martle as Martle
 
-from martle.martle import Color, Martle
+__version__ = "0.3.0"
+
+__all__ = ["Color", "Martle"]

@@ -2,7 +2,7 @@
 # requires-python = ">=3.13"
 # dependencies = [
 #     "marimo",
-#     "martle>=0.2.0",
+#     "martle>=0.3.0",
 # ]
 # ///
 import marimo
@@ -15,6 +15,7 @@ app = marimo.App(width="medium")
 def _():
     import marimo as mo
     from martle import Color, Martle
+
     return Color, Martle, mo
 
 

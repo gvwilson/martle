@@ -6,7 +6,7 @@ from enum import Enum
 
 import marimo as mo
 
-# Canvas dimensions
+# Default canvas dimensions
 WIDTH = 480
 HEIGHT = 480
 
@@ -32,14 +32,15 @@ BORDER_RADIUS = 8
 
 
 class Color(str, Enum):
-    """Standard palette colors available to Martle turtles."""
-    CRIMSON     = "#e63946"
-    SANDY       = "#f4a261"
-    TEAL        = "#2ec4b6"
-    SKY         = "#a8dadc"
-    GOLD        = "#e9c46a"
-    CORNFLOWER  = "#8ecae6"
-    SAGE        = "#b5e48c"
+    """Standard colors available to Martle turtles."""
+
+    CORNFLOWER = "#8ecae6"
+    CRIMSON = "#e63946"
+    GOLD = "#e9c46a"
+    SAGE = "#b5e48c"
+    SANDY = "#f4a261"
+    SKY = "#a8dadc"
+    TEAL = "#2ec4b6"
 
 
 class Martle:
@@ -49,12 +50,11 @@ class Martle:
     Each movement method is a coroutine.  Callers `await` it, so the
     event loop gets a chance to flush the updated SVG to the browser
     after every single line segment.
-
-    The pen color is not changed automatically.  Call ``set_color``
-    with a ``Color`` enum value or a hex string before drawing.
     """
 
-    def __init__(self, width: int = WIDTH, height: int = HEIGHT, delay: float = DEFAULT_DELAY):
+    def __init__(
+        self, width: int = WIDTH, height: int = HEIGHT, delay: float = DEFAULT_DELAY
+    ):
         self.width = width
         self.height = height
         self.x = width / 2
@@ -65,47 +65,21 @@ class Martle:
         self.color: str = Color.CRIMSON.value
         self._delay = delay
 
-    # ── pen control ──────────────────────────────────────────────────────
-    def penup(self):   self.pen = False
-    def pendown(self): self.pen = True
-    def goto(self, x, y): self.x, self.y = x, y
-    def setheading(self, a): self.angle = a
+    def pen_up(self):
+        self.pen = False
+
+    def pen_down(self):
+        self.pen = True
+
+    def goto(self, x, y):
+        self.x, self.y = x, y
+
+    def set_heading(self, a):
+        self.angle = a
 
     def set_color(self, color: "Color | str") -> None:
-        """Set the pen color to a Color enum value or a hex string."""
         self.color = color.value if isinstance(color, Color) else color
 
-    # ── SVG rendering ─────────────────────────────────────────────────────
-    def draw(self, show_turtle: bool = True) -> str:
-        lines = ""
-        for (x1, y1), (x2, y2), color in self.segments:
-            lines += (
-                f'<line x1="{x1:.1f}" y1="{y1:.1f}" '
-                f'x2="{x2:.1f}" y2="{y2:.1f}" '
-                f'stroke="{color}" stroke-width="{STROKE_WIDTH}" '
-                f'stroke-linecap="round"/>'
-            )
-        marker = ""
-        if show_turtle:
-            r = math.radians(self.angle)
-            # Equilateral triangle: three vertices equally spaced at 120° (2π/3 rad)
-            pts = " ".join(
-                f"{self.x + TURTLE_RADIUS*math.cos(r+a):.1f},{self.y + TURTLE_RADIUS*math.sin(r+a):.1f}"
-                for a in [0, 2*math.pi/3, -2*math.pi/3]
-            )
-            marker = f'<polygon points="{pts}" fill="{TURTLE_COLOR}" opacity="{TURTLE_OPACITY}"/>'
-        return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.width}" height="{self.height}" '
-            f'style="background:{BACKGROUND_COLOR};border-radius:{BORDER_RADIUS}px;display:block">'
-            f'{lines}{marker}</svg>'
-        )
-
-    # ── private: push one SVG frame ──────────────────────────────────────
-    async def _frame(self):
-        mo.output.replace(mo.Html(self.draw()))
-        await asyncio.sleep(self._delay)   # ← yield to event loop here
-
-    # ── movement coroutines ──────────────────────────────────────────────
     async def forward(self, dist: float):
         r = math.radians(self.angle)
         nx = self.x + dist * math.cos(r)
@@ -120,6 +94,36 @@ class Martle:
     async def backward(self, dist: float):
         await self.forward(-dist)
 
-    def right(self, deg: float): self.angle += deg
+    def right(self, deg: float):
+        self.angle += deg
 
-    def left(self,  deg: float): self.angle -= deg
+    def left(self, deg: float):
+        self.angle -= deg
+
+    def draw(self, show_turtle: bool = True) -> str:
+        lines = ""
+        for (x1, y1), (x2, y2), color in self.segments:
+            lines += (
+                f'<line x1="{x1:.1f}" y1="{y1:.1f}" '
+                f'x2="{x2:.1f}" y2="{y2:.1f}" '
+                f'stroke="{color}" stroke-width="{STROKE_WIDTH}" '
+                f'stroke-linecap="round"/>'
+            )
+        marker = ""
+        if show_turtle:
+            r = math.radians(self.angle)
+            # Equilateral triangle: three vertices equally spaced at 120° (2π/3 rad)
+            pts = " ".join(
+                f"{self.x + TURTLE_RADIUS * math.cos(r + a):.1f},{self.y + TURTLE_RADIUS * math.sin(r + a):.1f}"
+                for a in [0, 2 * math.pi / 3, -2 * math.pi / 3]
+            )
+            marker = f'<polygon points="{pts}" fill="{TURTLE_COLOR}" opacity="{TURTLE_OPACITY}"/>'
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{self.width}" height="{self.height}" '
+            f'style="background:{BACKGROUND_COLOR};border-radius:{BORDER_RADIUS}px;display:block">'
+            f"{lines}{marker}</svg>"
+        )
+
+    async def _frame(self):
+        mo.output.replace(mo.Html(self.draw()))
+        await asyncio.sleep(self._delay)  # yield to event loop here
