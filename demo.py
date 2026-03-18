@@ -38,11 +38,11 @@ def _(mo):
 
 @app.cell
 def _(Color, mo):
-    spiral_token = [None]  # spiral_token[0] holds the active World, if any
+    spiral_world = [None]  # spiral_world[0] holds the active World, if any
 
     def _stop_spiral(_):
-        if spiral_token[0] is not None:
-            spiral_token[0]._stop = True
+        if spiral_world[0] is not None:
+            spiral_world[0]._stop = True
 
     async def spiral(t):
         colors = list(Color)
@@ -56,17 +56,17 @@ def _(Color, mo):
     spiral_stop = mo.ui.run_button(label="Stop", on_change=_stop_spiral)
     spiral_spd = mo.ui.slider(1, 30, value=12, label="Speed")
     mo.hstack([mo.md("### Spiral"), spiral_spd, spiral_btn, spiral_stop], gap=2)
-    return spiral, spiral_btn, spiral_spd, spiral_stop, spiral_token
+    return spiral, spiral_btn, spiral_spd, spiral_stop, spiral_world
 
 
 @app.cell
-async def _(World, mo, spiral, spiral_btn, spiral_spd, spiral_stop, spiral_token):
+async def _(World, mo, spiral, spiral_btn, spiral_spd, spiral_stop, spiral_world):
     mo.stop(not spiral_btn.value)
     _world = World(delay=1.0 / spiral_spd.value)
-    spiral_token[0] = _world
+    spiral_world[0] = _world
     _t = _world.turtle()
     await _world.run(spiral(_t))
-    spiral_token[0] = None
+    spiral_world[0] = None
     return
 
 
@@ -75,11 +75,11 @@ async def _(World, mo, spiral, spiral_btn, spiral_spd, spiral_stop, spiral_token
 
 @app.cell
 def _(Color, mo):
-    star_token = [None]
+    star_world = [None]
 
     def _stop_star(_):
-        if star_token[0] is not None:
-            star_token[0]._stop = True
+        if star_world[0] is not None:
+            star_world[0]._stop = True
 
     async def star(t):
         colors = list(Color)
@@ -92,17 +92,17 @@ def _(Color, mo):
     star_stop = mo.ui.run_button(label="Stop", on_change=_stop_star)
     star_spd = mo.ui.slider(1, 30, value=12, label="Speed")
     mo.hstack([mo.md("### Star"), star_spd, star_btn, star_stop], gap=2)
-    return star, star_btn, star_spd, star_stop, star_token
+    return star, star_btn, star_spd, star_stop, star_world
 
 
 @app.cell
-async def _(World, mo, star, star_btn, star_spd, star_stop, star_token):
+async def _(World, mo, star, star_btn, star_spd, star_stop, star_world):
     mo.stop(not star_btn.value)
     _world = World(delay=1.0 / star_spd.value)
-    star_token[0] = _world
+    star_world[0] = _world
     _t = _world.turtle()
     await _world.run(star(_t))
-    star_token[0] = None
+    star_world[0] = None
     return
 
 
@@ -111,11 +111,11 @@ async def _(World, mo, star, star_btn, star_spd, star_stop, star_token):
 
 @app.cell
 def _(Color, mo):
-    snowflake_token = [None]
+    snowflake_world = [None]
 
     def _stop_snowflake(_):
-        if snowflake_token[0] is not None:
-            snowflake_token[0]._stop = True
+        if snowflake_world[0] is not None:
+            snowflake_world[0]._stop = True
 
     async def branch(tt, length, depth):
         if depth == 0 or length < 3:
@@ -139,18 +139,22 @@ def _(Color, mo):
     snowflake_btn = mo.ui.run_button(label="Draw")
     snowflake_stop = mo.ui.run_button(label="Stop", on_change=_stop_snowflake)
     snowflake_spd = mo.ui.slider(1, 30, value=12, label="Speed")
-    mo.hstack([mo.md("### Snowflake"), snowflake_spd, snowflake_btn, snowflake_stop], gap=2)
-    return snowflake, snowflake_btn, snowflake_spd, snowflake_stop, snowflake_token
+    mo.hstack(
+        [mo.md("### Snowflake"), snowflake_spd, snowflake_btn, snowflake_stop], gap=2
+    )
+    return snowflake, snowflake_btn, snowflake_spd, snowflake_stop, snowflake_world
 
 
 @app.cell
-async def _(World, mo, snowflake, snowflake_btn, snowflake_spd, snowflake_stop, snowflake_token):
+async def _(
+    World, mo, snowflake, snowflake_btn, snowflake_spd, snowflake_stop, snowflake_world
+):
     mo.stop(not snowflake_btn.value)
     _world = World(delay=1.0 / snowflake_spd.value)
-    snowflake_token[0] = _world
+    snowflake_world[0] = _world
     _t = _world.turtle()
     await _world.run(snowflake(_t))
-    snowflake_token[0] = None
+    snowflake_world[0] = None
     return
 
 
@@ -159,11 +163,11 @@ async def _(World, mo, snowflake, snowflake_btn, snowflake_spd, snowflake_stop, 
 
 @app.cell
 def _(Color, mo):
-    sq_token = [None]
+    sq_world = [None]
 
     def _stop_sq(_):
-        if sq_token[0] is not None:
-            sq_token[0]._stop = True
+        if sq_world[0] is not None:
+            sq_world[0]._stop = True
 
     async def square_spiral(t):
         colors = list(Color)
@@ -177,17 +181,17 @@ def _(Color, mo):
     sq_stop = mo.ui.run_button(label="Stop", on_change=_stop_sq)
     sq_spd = mo.ui.slider(1, 30, value=12, label="Speed")
     mo.hstack([mo.md("### Square Spiral"), sq_spd, square_spiral_btn, sq_stop], gap=2)
-    return square_spiral, square_spiral_btn, sq_spd, sq_stop, sq_token
+    return square_spiral, square_spiral_btn, sq_spd, sq_stop, sq_world
 
 
 @app.cell
-async def _(World, mo, square_spiral, square_spiral_btn, sq_spd, sq_stop, sq_token):
+async def _(World, mo, square_spiral, square_spiral_btn, sq_spd, sq_stop, sq_world):
     mo.stop(not square_spiral_btn.value)
     _world = World(delay=1.0 / sq_spd.value)
-    sq_token[0] = _world
+    sq_world[0] = _world
     _t = _world.turtle()
     await _world.run(square_spiral(_t))
-    sq_token[0] = None
+    sq_world[0] = None
     return
 
 
@@ -196,11 +200,11 @@ async def _(World, mo, square_spiral, square_spiral_btn, sq_spd, sq_stop, sq_tok
 
 @app.cell
 def _(mo):
-    koch_token = [None]
+    koch_world = [None]
 
     def _stop_koch(_):
-        if koch_token[0] is not None:
-            koch_token[0]._stop = True
+        if koch_world[0] is not None:
+            koch_world[0]._stop = True
 
     async def koch(tt, length, depth):
         if depth == 0:
@@ -223,17 +227,17 @@ def _(mo):
     koch_stop = mo.ui.run_button(label="Stop", on_change=_stop_koch)
     koch_spd = mo.ui.slider(1, 30, value=12, label="Speed")
     mo.hstack([mo.md("### Koch Curve"), koch_spd, koch_btn, koch_stop], gap=2)
-    return koch_curve, koch_btn, koch_spd, koch_stop, koch_token
+    return koch_curve, koch_btn, koch_spd, koch_stop, koch_world
 
 
 @app.cell
-async def _(World, mo, koch_curve, koch_btn, koch_spd, koch_stop, koch_token):
+async def _(World, mo, koch_curve, koch_btn, koch_spd, koch_stop, koch_world):
     mo.stop(not koch_btn.value)
     _world = World(delay=1.0 / koch_spd.value)
-    koch_token[0] = _world
+    koch_world[0] = _world
     _t = _world.turtle()
     await _world.run(koch_curve(_t))
-    koch_token[0] = None
+    koch_world[0] = None
     return
 
 
@@ -247,21 +251,21 @@ async def _(World, mo, koch_curve, koch_btn, koch_spd, koch_stop, koch_token):
 
 @app.cell
 def _(mo):
-    circles_token = [None]
+    circles_world = [None]
 
     def _stop_circles(_):
-        if circles_token[0] is not None:
-            circles_token[0]._stop = True
+        if circles_world[0] is not None:
+            circles_world[0]._stop = True
 
     circles_btn = mo.ui.run_button(label="Draw")
     circles_stop = mo.ui.run_button(label="Stop", on_change=_stop_circles)
     circles_spd = mo.ui.slider(1, 30, value=12, label="Speed")
     mo.hstack([mo.md("### Two Circles"), circles_spd, circles_btn, circles_stop], gap=2)
-    return circles_btn, circles_spd, circles_stop, circles_token
+    return circles_btn, circles_spd, circles_stop, circles_world
 
 
 @app.cell
-async def _(World, Color, mo, circles_btn, circles_spd, circles_stop, circles_token):
+async def _(World, Color, mo, circles_btn, circles_spd, circles_stop, circles_world):
     mo.stop(not circles_btn.value)
 
     async def fast_circle(t):
@@ -277,13 +281,13 @@ async def _(World, Color, mo, circles_btn, circles_spd, circles_stop, circles_to
             t.right(0.5)
 
     _world = World(delay=1.0 / circles_spd.value)
-    circles_token[0] = _world
+    circles_world[0] = _world
     _t1 = _world.turtle()
     _t2 = _world.turtle()
-    _t1.goto(63, 240)   # circle centre ≈ (120, 240)
+    _t1.goto(63, 240)  # circle centre ≈ (120, 240)
     _t2.goto(303, 240)  # circle centre ≈ (360, 240)
     await _world.run(fast_circle(_t1), slow_circle(_t2))
-    circles_token[0] = None
+    circles_world[0] = None
     return
 
 

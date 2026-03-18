@@ -1,9 +1,9 @@
 """Turtle and World classes."""
 
 import asyncio
+from enum import Enum
 import math
 import time
-from enum import Enum
 
 import marimo as mo
 
@@ -48,10 +48,12 @@ class World:
     """
     Canvas that owns rendering and hosts one or more turtles.
 
-    Create turtles with ``world.turtle()``, then run drawing coroutines
-    concurrently with ``await world.run(coro1, coro2, ...)``.  A background
-    render loop composites all turtles into one SVG at a fixed rate
-    (``delay`` seconds) so rendering cost is independent of turtle count.
+    Create turtles with ``world.turtle()``, then run drawing
+    coroutines concurrently with ``await world.run(coro1, coro2, ...)``.
+
+    A background render loop composites all turtles into one SVG at a
+    fixed rate (``delay`` seconds) so rendering cost is independent of
+    turtle count.
     """
 
     def __init__(
@@ -182,7 +184,10 @@ class Martle:
             self.segments.append(((self.x, self.y), (nx, ny), self.color))
             self.x, self.y = nx, ny
             self._world._dirty = True
-            await asyncio.sleep(self._world._delay)  # pace steps and yield to other turtles
+
+            # yield to other turtles
+            await asyncio.sleep(self._world._delay)
+
             self._world._maybe_render()
         else:
             self.x, self.y = nx, ny
