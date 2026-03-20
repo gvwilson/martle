@@ -38,3 +38,7 @@ publish:
 ## serve: run local docs server
 serve:
 	python -m http.server --directory docs
+
+## test: run tests
+test:
+	pytest tests

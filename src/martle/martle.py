@@ -1,11 +1,13 @@
 """Turtle and World classes."""
 
 import asyncio
+from collections.abc import Callable
 from enum import Enum
 import math
 import time
 
-import marimo as mo
+import anywidget
+import traitlets
 
 # Default canvas dimensions
 WIDTH = 480
@@ -33,7 +35,7 @@ BORDER_RADIUS = 8
 
 
 class Color(str, Enum):
-    """Standard colors available to Martle turtles."""
+    """Standard colors available to Turtle turtles."""
 
     CORNFLOWER = "#8ecae6"
     CRIMSON = "#e63946"
@@ -44,65 +46,303 @@ class Color(str, Enum):
     TEAL = "#2ec4b6"
 
 
-class World:
-    """
-    Canvas that owns rendering and hosts one or more turtles.
+# JavaScript ES module embedded in the widget.
+# Renders an SVG canvas with Start / Stop buttons and a speed slider.
+# Python → JS: model.get("_render") dict with "segments", "turtles", "done".
+# JS → Python: _start_counter (incremented) and _stop_requested (set True).
+_ESM = """
+const NS = "http://www.w3.org/2000/svg";
+const BG = "#1a1a2e";
 
-    Create turtles with ``world.turtle()``, then run drawing
-    coroutines concurrently with ``await world.run(coro1, coro2, ...)``.
+function makeLine(x1, y1, x2, y2, color) {
+  const el = document.createElementNS(NS, "line");
+  el.setAttribute("x1", x1.toFixed(1));
+  el.setAttribute("y1", y1.toFixed(1));
+  el.setAttribute("x2", x2.toFixed(1));
+  el.setAttribute("y2", y2.toFixed(1));
+  el.setAttribute("stroke", color);
+  el.setAttribute("stroke-width", "1.8");
+  el.setAttribute("stroke-linecap", "round");
+  return el;
+}
 
-    A background render loop composites all turtles into one SVG at a
-    fixed rate (``delay`` seconds) so rendering cost is independent of
-    turtle count.
+function makeTurtle(x, y, angleDeg) {
+  const r = (Math.PI * angleDeg) / 180;
+  const R = 9;
+  const pts = [0, (2 * Math.PI) / 3, -(2 * Math.PI) / 3]
+    .map(
+      (a) =>
+        `${(x + R * Math.cos(r + a)).toFixed(1)},${(y + R * Math.sin(r + a)).toFixed(1)}`
+    )
+    .join(" ");
+  const poly = document.createElementNS(NS, "polygon");
+  poly.setAttribute("points", pts);
+  poly.setAttribute("fill", "#00ff88");
+  poly.setAttribute("opacity", "0.9");
+  return poly;
+}
+
+function render({ model, el }) {
+  const W = model.get("width");
+  const H = model.get("height");
+
+  el.style.display = "inline-block";
+
+  // Controls row
+  const controls = document.createElement("div");
+  controls.style.cssText =
+    "display:flex;gap:8px;align-items:center;margin-bottom:6px;" +
+    "font-family:sans-serif;font-size:14px";
+
+  const btn = (label) => {
+    const b = document.createElement("button");
+    b.textContent = label;
+    b.style.cssText = "padding:4px 12px;cursor:pointer;border-radius:4px";
+    return b;
+  };
+
+  const startBtn = btn("▶ Start");
+  const stopBtn = btn("■ Stop");
+  stopBtn.disabled = true;
+
+  const speedSlider = document.createElement("input");
+  speedSlider.type = "range";
+  speedSlider.min = 1;
+  speedSlider.max = 60;
+  speedSlider.style.width = "100px";
+
+  const speedLabel = document.createElement("span");
+
+  const syncSpeedLabel = () => {
+    speedLabel.textContent = speedSlider.value + " fps";
+  };
+
+  speedSlider.value = Math.round(1.0 / model.get("delay"));
+  syncSpeedLabel();
+
+  controls.append(startBtn, stopBtn, speedSlider, speedLabel);
+
+  // SVG canvas
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("width", W);
+  svg.setAttribute("height", H);
+  svg.style.cssText = `background:${BG};border-radius:8px;display:block`;
+
+  const segGroup = document.createElementNS(NS, "g");
+  const turtleGroup = document.createElementNS(NS, "g");
+  svg.append(segGroup, turtleGroup);
+
+  el.append(controls, svg);
+
+  // Render updates from Python via the _render traitlet
+  model.on("change:_render", () => {
+    const data = model.get("_render");
+    if (!data || data.segments === undefined) return;
+
+    segGroup.innerHTML = "";
+    for (const [x1, y1, x2, y2, color] of data.segments) {
+      segGroup.appendChild(makeLine(x1, y1, x2, y2, color));
+    }
+    turtleGroup.innerHTML = "";
+    for (const [x, y, angle] of data.turtles) {
+      turtleGroup.appendChild(makeTurtle(x, y, angle));
+    }
+    if (data.done) {
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+    }
+  });
+
+  startBtn.onclick = () => {
+    segGroup.innerHTML = "";
+    turtleGroup.innerHTML = "";
+    model.set("_start_counter", model.get("_start_counter") + 1);
+    model.save_changes();
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+  };
+
+  stopBtn.onclick = () => {
+    model.set("_stop_requested", true);
+    model.save_changes();
+  };
+
+  speedSlider.oninput = () => {
+    syncSpeedLabel();
+    model.set("delay", 1.0 / parseInt(speedSlider.value));
+    model.save_changes();
+  };
+}
+
+export default { render };
+"""
+
+
+class World(anywidget.AnyWidget):
     """
+    Canvas widget that owns rendering and hosts one or more turtles.
+
+    Typical notebook usage::
+
+        world = World()
+
+        async def my_drawing(world, turtle):
+            for i in range(60):
+                await turtle.forward(i * 3)
+                turtle.right(91)
+
+        world.set_coroutine(my_drawing)
+        mo.ui.anywidget(world)   # display via mo.ui.anywidget for live comm
+
+    Drawing runs as an asyncio task in Marimo's event loop, so the kernel
+    stays free and Stop works immediately.
+
+    For testing, pass ``output_fn`` to bypass widget rendering::
+
+        world = World(output_fn=lambda _: None)
+        await world.run(my_drawing())
+    """
+
+    _esm = _ESM
+
+    width = traitlets.Int(WIDTH).tag(sync=True)
+    height = traitlets.Int(HEIGHT).tag(sync=True)
+    delay = traitlets.Float(DEFAULT_DELAY).tag(sync=True)
+    # Render state pushed to JS on each frame: {segments, turtles, done, ts}
+    _render = traitlets.Dict({}).tag(sync=True)
+    # Incremented by JS each time Start is pressed
+    _start_counter = traitlets.Int(0).tag(sync=True)
+    # Set True by JS when Stop is pressed; Python clears after handling
+    _stop_requested = traitlets.Bool(False).tag(sync=True)
 
     def __init__(
-        self, width: int = WIDTH, height: int = HEIGHT, delay: float = DEFAULT_DELAY
+        self,
+        width: int = WIDTH,
+        height: int = HEIGHT,
+        delay: float = DEFAULT_DELAY,
+        output_fn: Callable[[str], None] | None = None,
     ):
-        self.width = width
-        self.height = height
-        self._delay = delay
-        self._turtles: list["Martle"] = []
+        super().__init__(width=width, height=height, delay=delay)
+        self._turtles: list["Turtle"] = []
         self._dirty = False
-        self._last_render: float = 0.0  # time.monotonic() of last render
+        self._last_render: float = 0.0
         self._stop = False
+        self._coro_fns: list = []
+        # output_fn is used in test / non-widget mode; None means widget mode
+        self._output_fn = output_fn
 
-    def turtle(self) -> "Martle":
+    def turtle(self) -> "Turtle":
         """Create a new turtle that belongs to this world."""
-        t = Martle(self)
+        t = Turtle(self)
         self._turtles.append(t)
         return t
 
-    async def run(self, *coroutines) -> None:
-        """
-        Run coroutines concurrently, compositing all turtles each frame.
+    def set_coroutine(self, *coro_fns) -> None:
+        """Register async drawing functions to run when Start is pressed.
 
-        A single coroutine is awaited directly so that ``mo.output.replace``
-        calls inside it remain on the cell's execution chain.  Multiple
-        coroutines are run via ``asyncio.gather``; Python copies the current
-        contextvars context into each task, so output calls still reach the
-        correct cell.
+        Each function must accept ``(world, turtle)`` and move that turtle.
+        One :class:`Turtle` is created automatically per function.
+
+        Pass the function itself (not a coroutine object) so that a fresh
+        coroutine is created on each Start press, enabling clean restarts.
         """
-        self._last_render = 0.0  # ensure first dirty frame renders immediately
-        try:
-            if len(coroutines) == 1:
-                await coroutines[0]
-            else:
-                await asyncio.gather(*coroutines, return_exceptions=True)
-        finally:
-            # Final frame: hide turtle cursors
-            mo.output.replace(mo.Html(self._draw(show_turtle=False)))
+        self._coro_fns = list(coro_fns)
+        self._turtles = [Turtle(self) for _ in coro_fns]
+
+    # ------------------------------------------------------------------
+    # Widget signal handling (JS → Python via synced traitlets)
+    # ------------------------------------------------------------------
+
+    @traitlets.observe("_start_counter")
+    def _on_start(self, change) -> None:
+        if change["new"] > 0:
+            self._start_drawing()
+
+    @traitlets.observe("_stop_requested")
+    def _on_stop(self, change) -> None:
+        if change["new"]:
+            self._stop = True
+            self._stop_requested = False  # reset for next press
+
+    # ------------------------------------------------------------------
+    # Drawing lifecycle
+    # ------------------------------------------------------------------
+
+    def _reset_turtles(self) -> None:
+        for t in self._turtles:
+            t.segments = []
+            t.x = self.width / 2
+            t.y = self.height / 2
+            t.angle = INITIAL_ANGLE
+            t.pen = True
+            t.color = Color.CRIMSON.value
+
+    def _start_drawing(self) -> None:
+        """Launch the registered drawing coroutines.
+
+        Prefers scheduling an asyncio Task in the running event loop (the
+        normal Marimo case, where _on_start fires inside the event loop).
+        Falls back to a background thread when called from a non-async
+        context (e.g. tests that call _start_drawing directly).
+        """
+        self._stop = True   # cancel any currently-running drawing
+        self._stop = False  # clear immediately for the new run
+        self._last_render = 0.0
+        self._dirty = False
+        self._reset_turtles()
+
+        coros = [fn(self, t) for fn, t in zip(self._coro_fns, self._turtles)]
+
+        async def _run() -> None:
+            try:
+                if len(coros) == 1:
+                    await coros[0]
+                else:
+                    await asyncio.gather(*coros, return_exceptions=True)
+            finally:
+                self._flush(show_turtle=False, done=True)
+
+        # Schedule as a concurrent task in Marimo's running event loop.
+        # The cell that called set_coroutine() has already returned, so the
+        # kernel is free — Start/Stop signals are processed normally.
+        asyncio.get_running_loop().create_task(_run())
+
+    # ------------------------------------------------------------------
+    # Rendering
+    # ------------------------------------------------------------------
+
+    def _flush(self, show_turtle: bool = True, done: bool = False) -> None:
+        """Push current state to the JS frontend via the _render traitlet."""
+        all_segs = [
+            [x1, y1, x2, y2, color]
+            for t in self._turtles
+            for (x1, y1), (x2, y2), color in t.segments
+        ]
+        turtle_data = (
+            [[t.x, t.y, t.angle] for t in self._turtles] if show_turtle else []
+        )
+        # Include a monotonic timestamp so the dict is always a new value
+        # even when segments haven't changed, ensuring the JS observer fires.
+        self._render = {
+            "segments": all_segs,
+            "turtles": turtle_data,
+            "done": done,
+            "ts": time.monotonic(),
+        }
 
     def _maybe_render(self) -> None:
-        """Render if dirty and enough time has elapsed since the last frame."""
+        """Rate-limited render: push to JS frontend or call output_fn."""
         now = time.monotonic()
-        if self._dirty and (now - self._last_render) >= self._delay:
-            mo.output.replace(mo.Html(self._draw()))
+        if self._dirty and (now - self._last_render) >= self.delay:
+            if self._output_fn is not None:
+                self._output_fn(self._draw())
+            else:
+                self._flush()
             self._dirty = False
             self._last_render = now
 
     def _draw(self, show_turtle: bool = True) -> str:
-        """Composite all turtles' segments and cursors into one SVG."""
+        """Build an SVG string compositing all turtles (used in output_fn / test mode)."""
         lines = ""
         for t in self._turtles:
             for (x1, y1), (x2, y2), color in t.segments:
@@ -115,7 +355,6 @@ class World:
         if show_turtle:
             for t in self._turtles:
                 r = math.radians(t.angle)
-                # Equilateral triangle: three vertices equally spaced at 120° (2π/3 rad)
                 pts = " ".join(
                     f"{t.x + TURTLE_RADIUS * math.cos(r + a):.1f},"
                     f"{t.y + TURTLE_RADIUS * math.sin(r + a):.1f}"
@@ -132,14 +371,35 @@ class World:
             f"{lines}</svg>"
         )
 
+    # ------------------------------------------------------------------
+    # Direct async run (used by tests)
+    # ------------------------------------------------------------------
 
-class Martle:
+    async def run(self, *coroutines) -> None:
+        """Run coroutines in the current event loop (test / direct-use path).
+
+        Notebook users should use set_coroutine() + the Start button instead.
+        """
+        self._last_render = 0.0
+        try:
+            if len(coroutines) == 1:
+                await coroutines[0]
+            else:
+                await asyncio.gather(*coroutines, return_exceptions=True)
+        finally:
+            if self._output_fn is not None:
+                self._output_fn(self._draw(show_turtle=False))
+            else:
+                self._flush(show_turtle=False, done=True)
+
+
+class Turtle:
     """
     Async turtle that draws into a World.
 
     Create via ``World.turtle()`` rather than directly.  Each movement
     method is a coroutine that yields to the event loop after moving so
-    that other turtles and the World's render loop can run.
+    that other turtles can run concurrently.
     """
 
     def __init__(self, world: World):
@@ -159,22 +419,22 @@ class Martle:
     def height(self) -> int:
         return self._world.height
 
-    def pen_up(self):
+    def pen_up(self) -> None:
         self.pen = False
 
-    def pen_down(self):
+    def pen_down(self) -> None:
         self.pen = True
 
-    def goto(self, x, y):
+    def goto(self, x: float, y: float) -> None:
         self.x, self.y = x, y
 
-    def set_heading(self, a):
+    def set_heading(self, a: float) -> None:
         self.angle = a
 
     def set_color(self, color: "Color | str") -> None:
         self.color = color.value if isinstance(color, Color) else color
 
-    async def forward(self, dist: float):
+    async def forward(self, dist: float) -> None:
         if self._world._stop:
             return
         r = math.radians(self.angle)
@@ -184,19 +444,16 @@ class Martle:
             self.segments.append(((self.x, self.y), (nx, ny), self.color))
             self.x, self.y = nx, ny
             self._world._dirty = True
-
-            # yield to other turtles
-            await asyncio.sleep(self._world._delay)
-
+            await asyncio.sleep(self._world.delay)
             self._world._maybe_render()
         else:
             self.x, self.y = nx, ny
 
-    async def backward(self, dist: float):
+    async def backward(self, dist: float) -> None:
         await self.forward(-dist)
 
-    def right(self, deg: float):
+    def right(self, deg: float) -> None:
         self.angle += deg
 
-    def left(self, deg: float):
+    def left(self, deg: float) -> None:
         self.angle -= deg
